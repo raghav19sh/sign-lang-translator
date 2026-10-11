@@ -285,17 +285,28 @@ export default function AslBridge() {
       const fileset = await vision.FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
       );
-      landmarkerRef.current = await vision.HandLandmarker.createFromOptions(fileset, {
+      const detectorOptions = {
         baseOptions: {
           modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "GPU",
         },
-        runningMode: "VIDEO",
+        runningMode: "VIDEO" as const,
         numHands: 2,
         minHandDetectionConfidence: 0.55,
         minHandPresenceConfidence: 0.5,
         minTrackingConfidence: 0.5,
-      });
+      };
+      // GPU delegates are not available in every browser/device; retry on CPU.
+      try {
+        landmarkerRef.current = await vision.HandLandmarker.createFromOptions(fileset, {
+          ...detectorOptions,
+          baseOptions: { ...detectorOptions.baseOptions, delegate: "GPU" },
+        });
+      } catch {
+        landmarkerRef.current = await vision.HandLandmarker.createFromOptions(fileset, {
+          ...detectorOptions,
+          baseOptions: { ...detectorOptions.baseOptions, delegate: "CPU" },
+        });
+      }
       setCameraOn(true);
       setDetectorReady(true);
       setCameraLoading(false);
@@ -307,7 +318,8 @@ export default function AslBridge() {
       if (videoRef.current) videoRef.current.srcObject = null;
       setCameraLoading(false);
       setCameraOn(false);
-      setCameraError(error instanceof Error ? error.message : "Could not start camera tracking.");
+      const detail = error instanceof Error ? error.message : (typeof error === "object" && error !== null && "message" in error ? String((error as { message: unknown }).message) : String(error));
+      setCameraError(detail || "Camera setup failed. Check camera permissions and network access to the MediaPipe model.");
     }
   }, [runFrameLoop]);
 
