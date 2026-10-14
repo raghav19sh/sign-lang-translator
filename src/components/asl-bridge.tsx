@@ -144,7 +144,7 @@ export default function AslBridge() {
   const currentFeaturesRef = useRef<number[] | null>(null);
   const frameRef = useRef(0);
   const apiPendingRef = useRef(false);
-  const apiBase = process.env.NEXT_PUBLIC_ASL_API_URL || "http://127.0.0.1:8000";
+  const apiBase = (process.env.NEXT_PUBLIC_ASL_API_URL || "").replace(/\/$/, "");
   const apiEnabledRef = useRef(false);
   const apiStatusRef = useRef<"off" | "checking" | "ready" | "no-model" | "offline">("off");
 
