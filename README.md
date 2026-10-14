@@ -53,7 +53,7 @@ uvicorn services.api.main:app --reload --host 127.0.0.1 --port 8000
 
 Check <http://127.0.0.1:8000/api/v1/health>. The API reports that the classifier is unavailable until a model has been trained.
 
-By default, the frontend shows its API connection toggle as disabled. Turning it on sends only landmark vectors to `NEXT_PUBLIC_ASL_API_URL` (default: `http://127.0.0.1:8000`). This may be changed via `.env.local`, but ensure the destination is trusted and update your privacy notice if using a remote service.
+By default, the frontend shows its API connection toggle as disabled. Turning it on sends only normalized landmark vectors to the same-origin Next.js endpoint (`/api/v1/health` and `/api/v1/recognize`), which is suitable for a deployment such as Vercel. To use the separate FastAPI service instead, set `NEXT_PUBLIC_ASL_API_URL` in `.env.local` to its base URL (for example, `http://127.0.0.1:8000` for local development). Only use a trusted HTTPS URL for a remote service, and update your privacy notice to disclose that processing.
 
 ## Collect and train a baseline model
 
