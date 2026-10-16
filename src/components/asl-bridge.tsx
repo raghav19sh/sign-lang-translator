@@ -143,6 +143,7 @@ export default function AslBridge() {
   const rafRef = useRef<number | null>(null);
   const currentFeaturesRef = useRef<number[] | null>(null);
   const frameRef = useRef(0);
+  const frameLoopRef = useRef<() => void>(() => {});
   const apiPendingRef = useRef(false);
   const apiBase = process.env.NEXT_PUBLIC_ASL_API_URL || "http://127.0.0.1:8000";
   const apiEnabledRef = useRef(false);
@@ -157,6 +158,8 @@ export default function AslBridge() {
   }, [apiStatus]);
 
   useEffect(() => {
+    // Local-storage hydration runs after mount to avoid server/client markup differences.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSamples(readSamples());
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
@@ -216,7 +219,7 @@ export default function AslBridge() {
     const detector = landmarkerRef.current;
     if (!video || !canvas || !detector) return;
     if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-      rafRef.current = requestAnimationFrame(runFrameLoop);
+      rafRef.current = requestAnimationFrame(() => frameLoopRef.current());
       return;
     }
 
@@ -261,8 +264,12 @@ export default function AslBridge() {
     if (apiEnabledRef.current && apiStatusRef.current === "ready" && currentFeaturesRef.current && frameRef.current % 12 === 0) {
       void askForPrediction(currentFeaturesRef.current);
     }
-    rafRef.current = requestAnimationFrame(runFrameLoop);
+    rafRef.current = requestAnimationFrame(() => frameLoopRef.current());
   }, [askForPrediction]);
+
+  useEffect(() => {
+    frameLoopRef.current = runFrameLoop;
+  }, [runFrameLoop]);
 
   const startCamera = useCallback(async () => {
     setCameraError("");
@@ -434,7 +441,8 @@ export default function AslBridge() {
   };
 
   return (
-    <main className="app-shell">
+    <div className="app-shell">
+      <a className="app-skip-link" href="#workspace-content">Skip to workspace</a>
       <aside className="sidebar">
         <button className="brand-lockup" onClick={() => { setView("translate"); setDirection("sign-to-text"); }} aria-label="ASL Bridge home">
           <span className="brand-mark"><Hand size={21} strokeWidth={2.5} /></span>
@@ -481,7 +489,7 @@ export default function AslBridge() {
         </div>
       </aside>
 
-      <section className="main-area">
+      <main className="main-area">
         <header className="topbar">
           <div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><strong>{view === "translate" ? "Translator" : view === "library" ? "Sign library" : "Model lab"}</strong></div>
           <div className="topbar-actions">
@@ -491,7 +499,7 @@ export default function AslBridge() {
           </div>
         </header>
 
-        <div className="page-content">
+        <div id="workspace-content" className="page-content">
           <div className="page-heading">
             <div>
               <div className="eyebrow"><span className="eyebrow-line" /> AMERICAN SIGN LANGUAGE <span className="eyebrow-sep">·</span> AI WORKBENCH</div>
@@ -609,7 +617,7 @@ export default function AslBridge() {
           </div>}
 
           {view === "model" && <div className="model-view">
-            <div className="model-overview-grid"><div className="panel model-stat-panel"><span className="stat-label">LANDMARK SAMPLES</span><div className="stat-number">{samples.length.toLocaleString()}<span>samples</span></div><p>Saved in this browser's local storage.</p><div className="stat-icon mint-bg"><Layers3 size={19} /></div></div><div className="panel model-stat-panel"><span className="stat-label">LABEL CLASSES</span><div className="stat-number">{labelCounts.length}<span>classes</span></div><p>Unique labels captured for training.</p><div className="stat-icon purple-bg"><Fingerprint size={19} /></div></div><div className="panel model-stat-panel"><span className="stat-label">CLASSIFIER STATUS</span><div className="stat-number stat-text">{apiStatus === "ready" && apiEnabled ? "Connected" : "Not trained"}</div><p>A saved model is required for prediction.</p><div className="stat-icon amber-bg"><Gauge size={19} /></div></div></div>
+            <div className="model-overview-grid"><div className="panel model-stat-panel"><span className="stat-label">LANDMARK SAMPLES</span><div className="stat-number">{samples.length.toLocaleString()}<span>samples</span></div><p>Saved in this browser&apos;s local storage.</p><div className="stat-icon mint-bg"><Layers3 size={19} /></div></div><div className="panel model-stat-panel"><span className="stat-label">LABEL CLASSES</span><div className="stat-number">{labelCounts.length}<span>classes</span></div><p>Unique labels captured for training.</p><div className="stat-icon purple-bg"><Fingerprint size={19} /></div></div><div className="panel model-stat-panel"><span className="stat-label">CLASSIFIER STATUS</span><div className="stat-number stat-text">{apiStatus === "ready" && apiEnabled ? "Connected" : "Not trained"}</div><p>A saved model is required for prediction.</p><div className="stat-icon amber-bg"><Gauge size={19} /></div></div></div>
             <div className="model-lab-grid"><section className="panel model-labels-panel"><div className="panel-head"><div className="panel-title"><span className="panel-icon mint-bg"><Layers3 size={17} /></span><div><h2>Local dataset labels</h2><p>Sample balance by class</p></div></div><button className="subtle-action" onClick={exportSamples} disabled={!samples.length}><FileDown size={14} /> Export JSONL</button></div>{labelCounts.length ? <div className="label-list">{labelCounts.map(([label, count]) => <div className="label-row" key={label}><span className="label-name">{label}</span><div className="label-bar"><span style={{ width: `${Math.max(4, count / Math.max(...labelCounts.map((entry) => entry[1])) * 100)}%` }} /></div><span className="label-count">{count}</span></div>)}</div> : <div className="blank-state small-blank"><div className="blank-state-icon"><Fingerprint size={20} /></div><strong>No samples yet</strong><span>Open Translator → Sign to Text, start the camera, enter a label, and capture repeated examples.</span><button className="button-secondary" onClick={() => { setView("translate"); setDirection("sign-to-text"); }}>Open data collector <ArrowDownRight size={14} /></button></div>}<div className="model-panel-actions"><button className="button-secondary" onClick={clearSamples} disabled={!samples.length}><X size={14} /> Clear local data</button><button className="button-primary" onClick={exportSamples} disabled={!samples.length}><Download size={14} /> Download JSONL</button></div></section>
               <section className="panel training-guide-panel"><div className="panel-head"><div className="panel-title"><span className="panel-icon purple-bg"><Activity size={17} /></span><div><h2>Training workflow</h2><p>From landmarks to a measurable baseline</p></div></div></div><div className="workflow-list"><div className="workflow-step"><span className="step-no">01</span><div><strong>Capture balanced samples</strong><p>Record multiple examples for every label, across separate sessions and signers where possible.</p><span className="step-meta">DATA COLLECTION</span></div></div><div className="workflow-step"><span className="step-no">02</span><div><strong>Export your JSONL dataset</strong><p>Download samples and place the file at <code>data/samples.jsonl</code>.</p><span className="step-meta">DATA VERSIONING</span></div></div><div className="workflow-step"><span className="step-no">03</span><div><strong>Train the Random Forest</strong><p>Run <code>python ml/train.py</code> from the project root to create the baseline artifact.</p><span className="step-meta">MODEL TRAINING</span></div></div><div className="workflow-step"><span className="step-no">04</span><div><strong>Run the local API</strong><p>Start FastAPI on port 8000, then enable the model connection in the Translator.</p><span className="step-meta">LIVE INFERENCE</span></div></div></div><a className="docs-link" href="https://github.com/raghav19sh/sign-lang-translator" target="_blank" rel="noreferrer">Open project repository <ExternalLink size={14} /></a></section></div>
             <div className="model-warning"><CircleHelp size={18} /><div><strong>Model quality depends on the dataset.</strong><p>A Random Forest trained on your own captures is only a baseline. Split by signer when possible, evaluate on unseen signers, inspect per-class metrics, and do not describe alphabet classification as full ASL translation. Dynamic signs such as J and Z require temporal data.</p></div></div>
@@ -617,8 +625,8 @@ export default function AslBridge() {
 
           <footer className="page-footer"><div><span className="footer-dot" /> SYSTEM STATUS <strong>{cameraOn ? "LANDMARK TRACKING" : "READY"}</strong><span className="footer-divider">/</span><span>ASL BRIDGE v1.0</span></div><div><span>Built for learning and research</span><span className="footer-divider">·</span><button onClick={() => setNotice("This prototype is not a substitute for a qualified ASL interpreter or emergency communication service.")}>Limitations</button><span className="footer-divider">·</span><button onClick={() => setNotice("Privacy note: camera video remains in the browser. Landmark samples are stored locally only after you press Capture sample.")}>Privacy</button></div></footer>
         </div>
-      </section>
-    </main>
+      </main>
+    </div>
   );
 }
 
